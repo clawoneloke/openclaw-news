@@ -1,0 +1,53 @@
+{
+  "name": "openclaw-news-fetcher",
+  "version": "1.0.0",
+  "description": "Daily news fetcher for OpenClaw - fetches and summarizes news from multiple sources",
+  "outputFile": "/tmp/latest-news.txt",
+  "maxItems": 3,
+  "cron": {
+    "schedule": "15 7 * * 2,3,4,5,6",
+    "timezone": "Pacific/Auckland",
+    "enabled": true
+  },
+  "sources": [
+    {
+      "name": "Yahoo Finance",
+      "url": "https://finance.yahoo.com/news/",
+      "maxHeadlines": 3,
+      "enabled": true
+    },
+    {
+      "name": "MarketWatch",
+      "url": "https://www.marketwatch.com/newsbrowse/rss",
+      "maxHeadlines": 3,
+      "enabled": true
+    },
+    {
+      "name": "CNBC",
+      "url": "https://www.cnbc.com/world/",
+      "maxHeadlines": 3,
+      "enabled": true
+    }
+  ],
+  "filter": {
+    "minLength": 40,
+    "maxLength": 150,
+    "excludePatterns": [
+      "javascript",
+      "cookie",
+      "advertisement",
+      "enable js",
+      "ad blocker",
+      "function(",
+      "{",
+      "CDATA",
+      "cmsg",
+      "animation"
+    ],
+    "excludeDomains": [],
+    "keywords": []
+  },
+  "userAgent": "Mozilla/5.0 (compatible; OpenClaw/1.0)",
+  "timeout": 15000,
+  "requestDelay": 2000
+}
