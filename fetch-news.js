@@ -1,0 +1,234 @@
+#!/usr/bin/env node
+
+/**
+ * OpenClaw News Fetcher
+ * Fetches top news from multiple sources and sends summary
+ * 
+ * Configuration: news-config.json
+ * Output: /tmp/latest-news.txt
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+// Paths
+const CONFIG_FILE = path.join(__dirname, 'news-config.json');
+const OUTPUT_FILE = '/tmp/latest-news.txt';
+
+// Load config
+const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+
+// Colors
+const colors = {
+  reset: '\x1b[0m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  cyan: '\x1b[36m',
+  bold: '\x1b[1m'
+};
+
+/**
+ * Check if headline passes filters
+ */
+function passesFilters(headline) {
+  const lower = headline.toLowerCase();
+  const len = headline.length;
+  const f = config.filter;
+  
+  // Length check
+  if (len < f.minLength || len > f.maxLength) {
+    return false;
+  }
+  
+  // Pattern exclusion
+  for (const pattern of f.excludePatterns) {
+    if (lower.includes(pattern.toLowerCase())) {
+      return false;
+    }
+  }
+  
+  // Keyword inclusion (if any keywords specified)
+  if (f.keywords.length > 0) {
+    const matches = f.keywords.some(k => lower.includes(k.toLowerCase()));
+    if (!matches) return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Clean headline text
+ */
+function cleanHeadline(text) {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#\d+;/g, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Fetch news from a URL
+ */
+async function fetchNews(source) {
+  console.log(`${colors.cyan}Fetching from ${source.name}...${colors.reset}`);
+  
+  if (!source.enabled) {
+    console.log(`${colors.yellow}  Skipped (disabled)${colors.reset}`);
+    return [];
+  }
+  
+  try {
+    const response = execSync(
+      `curl -s -L "${source.url}" -H "User-Agent: ${config.userAgent}" --max-time ${config.timeout / 1000} 2>/dev/null`,
+      {
+        encoding: 'utf8',
+        maxBuffer: 2 * 1024 * 1024
+      }
+    );
+    
+    const headlines = [];
+    
+    // Pattern 1: RSS <title>
+    const rssTitles = response.match(/<title>([^<]{30,200})<\/title>/gi);
+    if (rssTitles) {
+      for (const title of rssTitles) {
+        const clean = cleanHeadline(title);
+        if (passesFilters(clean) && !headlines.includes(clean)) {
+          headlines.push(clean);
+        }
+      }
+    }
+    
+    // Pattern 2: <h1-h4> elements
+    if (headlines.length < source.maxHeadlines) {
+      const hTags = response.match(/<h[1-4][^>]*>([^<]{30,200})<\/h[1-4]>/gi);
+      if (hTags) {
+        for (const h of hTags) {
+          const clean = cleanHeadline(h);
+          if (passesFilters(clean) && !headlines.includes(clean)) {
+            headlines.push(clean);
+          }
+        }
+      }
+    }
+    
+    const filtered = headlines.slice(0, source.maxHeadlines);
+    console.log(`${colors.green}  Found ${filtered.length} headlines${colors.reset}`);
+    return filtered;
+    
+  } catch (error) {
+    console.log(`${colors.red}  Error: ${error.message}${colors.reset}`);
+    return [];
+  }
+}
+
+/**
+ * Summarize a headline
+ */
+function summarize(headline) {
+  // Take first sentence or first 100 chars
+  let summary = headline.split(/[.!?](?:\s+|$)/)[0].trim();
+  if (summary.length > 100) {
+    summary = summary.substring(0, 97) + '...';
+  }
+  return summary;
+}
+
+/**
+ * Format news for sending
+ */
+function formatNews(allNews) {
+  const date = new Date().toLocaleDateString('en-NZ', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  
+  let message = `📰 **Morning News Summary** — ${date}\n\n`;
+  
+  let count = 1;
+  for (const news of allNews) {
+    if (news.headlines.length > 0) {
+      message += `**${news.source}**\n`;
+      for (const headline of news.headlines) {
+        message += `${count}. ${summarize(headline)}\n`;
+        count++;
+      }
+      message += '\n';
+    }
+  }
+  
+  // Trim to maxItems if configured
+  if (config.maxItems && config.maxItems > 0) {
+    const lines = message.split('\n');
+    const headlinesOnly = lines.filter(l => /^\d+\.\s/.test(l));
+    if (headlinesOnly.length > config.maxItems) {
+      // Rebuild message with only top items
+      message = `📰 **Morning News Summary** — ${date}\n\n`;
+      count = 1;
+      for (const news of allNews) {
+        if (news.headlines.length > 0) {
+          message += `**${news.source}**\n`;
+          for (const headline of news.headlines.slice(0, config.maxItems - (count - 1))) {
+            if (count > config.maxItems) break;
+            message += `${count}. ${summarize(headline)}\n`;
+            count++;
+          }
+          message += '\n';
+        }
+      }
+    }
+  }
+  
+  message += `---\n*Auto-generated by OpenClaw*`;
+  
+  return message;
+}
+
+/**
+ * Main
+ */
+async function main() {
+  console.log(`${colors.green}${colors.bold}📰 OpenClaw News Fetcher${colors.reset}`);
+  console.log(`${colors.cyan}Running: ${new Date().toLocaleString()}${colors.reset}`);
+  console.log(`${colors.cyan}Config: ${CONFIG_FILE}${colors.reset}\n`);
+  
+  // Fetch news from configured sources
+  const allNews = [];
+  
+  for (const source of config.sources) {
+    const headlines = await fetchNews(source);
+    if (headlines.length > 0) {
+      allNews.push({ source: source.name, headlines });
+    }
+    // Delay between sources
+    await new Promise(r => setTimeout(r, config.requestDelay));
+  }
+  
+  if (allNews.length === 0) {
+    console.log(`${colors.red}⚠️ No news fetched${colors.reset}`);
+    fs.writeFileSync(OUTPUT_FILE, '⚠️ Could not fetch news this morning. Try again tomorrow.');
+    return;
+  }
+  
+  // Format and save
+  const message = formatNews(allNews);
+  fs.writeFileSync(OUTPUT_FILE, message);
+  
+  console.log(`\n${colors.green}${colors.bold}✓ Complete!${colors.reset}`);
+  console.log(`${colors.cyan}Output: ${OUTPUT_FILE}${colors.reset}`);
+}
+
+// Run
+main().catch(err => {
+  console.error(`${colors.red}Error: ${err.message}${colors.reset}`);
+  process.exit(1);
+});
