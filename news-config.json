@@ -3,28 +3,53 @@
   "version": "1.0.0",
   "description": "Daily news fetcher for OpenClaw - fetches and summarizes news from multiple sources",
   "outputFile": "/tmp/latest-news.txt",
-  "maxItems": 3,
+  "maxItems": 15,
+  "braveApiKey": "${BRAVE_API_KEY}",
   "cron": {
-    "schedule": "15 7 * * 2,3,4,5,6",
+    "schedule": "15 7 * * 1,2,3,4,5,6",
     "timezone": "Pacific/Auckland",
     "enabled": true
   },
   "sources": [
     {
+      "name": "Bloomberg Markets",
+      "url": "https://feeds.bloomberg.com/markets/news.rss",
+      "maxHeadlines": 3,
+      "enabled": true
+    },
+    {
+      "name": "Dow Jones Market Pulse",
+      "url": "https://feeds.content.dowjones.io/public/rss/mw_marketpulse",
+      "maxHeadlines": 3,
+      "enabled": true
+    },
+    {
+      "name": "Seeking Alpha",
+      "url": "https://seekingalpha.com/feed.xml",
+      "maxHeadlines": 3,
+      "enabled": true
+    },
+    {
       "name": "Yahoo Finance",
-      "url": "https://finance.yahoo.com/news/",
+      "url": "https://feeds.finance.yahoo.com/rss/2.0/headline",
+      "maxHeadlines": 3,
+      "enabled": false
+    },
+    {
+      "name": "CNBC Business",
+      "url": "https://www.cnbc.com/id/10000664/device/rss/rss.html",
       "maxHeadlines": 3,
       "enabled": true
     },
     {
-      "name": "MarketWatch",
-      "url": "https://www.marketwatch.com/newsbrowse/rss",
+      "name": "WSJ Markets",
+      "url": "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",
       "maxHeadlines": 3,
       "enabled": true
     },
     {
-      "name": "CNBC",
-      "url": "https://www.cnbc.com/world/",
+      "name": "Google News Business",
+      "url": "https://news.google.com/rss/search?q=business+finance+markets&hl=en-US&gl=US&ceid=US:en",
       "maxHeadlines": 3,
       "enabled": true
     }

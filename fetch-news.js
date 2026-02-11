@@ -4,7 +4,7 @@
  * OpenClaw News Fetcher
  * Fetches top news from multiple sources and sends summary
  * 
- * Configuration: news-config.json
+ * Configuration: news-config.json (use BRAVE_API_KEY env var for API key)
  * Output: /tmp/latest-news.txt
  */
 
@@ -17,7 +17,23 @@ const CONFIG_FILE = path.join(__dirname, 'news-config.json');
 const OUTPUT_FILE = '/tmp/latest-news.txt';
 
 // Load config
-const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+let config;
+try {
+  const rawConfig = fs.readFileSync(CONFIG_FILE, 'utf8');
+  config = JSON.parse(rawConfig);
+  
+  // Support environment variable substitution for API keys
+  if (config.braveApiKey && config.braveApiKey.startsWith('${')) {
+    const envVar = config.braveApiKey.match(/\$\{(\w+)\}/)[1];
+    config.braveApiKey = process.env[envVar] || '';
+  }
+} catch (error) {
+  console.error(`Error loading config: ${error.message}`);
+  process.exit(1);
+}
+
+// Get gateway token from environment (security: use env var)
+const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 
 // Colors
 const colors = {
@@ -74,6 +90,95 @@ function cleanHeadline(text) {
 }
 
 /**
+ * Fetch news from Brave Search API via OpenClaw Gateway
+ */
+async function fetchFromBrave(source) {
+  console.log(`${colors.cyan}Fetching from Brave Search API (via gateway)...${colors.reset}`);
+  
+  try {
+    // Try OpenClaw gateway API first
+    const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL || 'http://127.0.0.1:18789';
+    
+    if (!gatewayToken) {
+      throw new Error('OPENCLAW_GATEWAY_TOKEN not configured');
+    }
+    
+    const query = source.query || 'top business finance news today';
+    const searchUrl = `${gatewayUrl}/api/v1/tools/web/search?q=${encodeURIComponent(query)}&count=${source.maxHeadlines}`;
+    
+    const response = execSync(
+      `curl -s "${searchUrl}" -H "Authorization: Bearer ${gatewayToken}" -H "Accept: application/json" --max-time ${config.timeout / 1000}`,
+      {
+        encoding: 'utf8',
+        maxBuffer: 2 * 1024 * 1024
+      }
+    );
+    
+    const data = JSON.parse(response);
+    const headlines = [];
+    
+    // Handle OpenClaw gateway response format
+    if (data.results && Array.isArray(data.results)) {
+      for (const result of data.results) {
+        if (result.title && passesFilters(result.title)) {
+          headlines.push(result.title);
+        }
+      }
+    } else if (Array.isArray(data)) {
+      // Direct array response
+      for (const item of data) {
+        if (item.title && passesFilters(item.title)) {
+          headlines.push(item.title);
+        }
+      }
+    }
+    
+    console.log(`${colors.green}  Found ${headlines.length} headlines${colors.reset}`);
+    return headlines.slice(0, source.maxHeadlines);
+    
+  } catch (error) {
+    console.log(`${colors.yellow}  Gateway unavailable (${error.message}), falling back to direct API...${colors.reset}`);
+    
+    // Fallback to direct API with proper headers
+    try {
+      const braveApiKey = config.braveApiKey;
+      
+      if (!braveApiKey) {
+        throw new Error('BRAVE_API_KEY not configured (neither in config nor env var)');
+      }
+      
+      const query = source.query || 'top business finance news today';
+      
+      const response = execSync(
+        `curl -s "https://api.search.brave.com/v1/search?q=${encodeURIComponent(query)}&source=news&count=${source.maxHeadlines}" -H "Accept: application/json" -H "X-Subscription-Token: ${braveApiKey}" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" --max-time ${config.timeout / 1000}`,
+        {
+          encoding: 'utf8',
+          maxBuffer: 2 * 1024 * 1024
+        }
+      );
+      
+      const data = JSON.parse(response);
+      const headlines = [];
+      
+      if (data.results && Array.isArray(data.results)) {
+        for (const result of data.results) {
+          if (result.title && passesFilters(result.title)) {
+            headlines.push(result.title);
+          }
+        }
+      }
+      
+      console.log(`${colors.green}  Found ${headlines.length} headlines${colors.reset}`);
+      return headlines.slice(0, source.maxHeadlines);
+      
+    } catch (fallbackError) {
+      console.log(`${colors.red}  Error: ${fallbackError.message}${colors.reset}`);
+      return [];
+    }
+  }
+}
+
+/**
  * Fetch news from a URL
  */
 async function fetchNews(source) {
@@ -82,6 +187,11 @@ async function fetchNews(source) {
   if (!source.enabled) {
     console.log(`${colors.yellow}  Skipped (disabled)${colors.reset}`);
     return [];
+  }
+  
+  // Handle Brave Search API
+  if (source.type === 'api' && source.api === 'brave') {
+    return await fetchFromBrave(source);
   }
   
   try {
@@ -95,11 +205,23 @@ async function fetchNews(source) {
     
     const headlines = [];
     
-    // Pattern 1: RSS <title>
-    const rssTitles = response.match(/<title>([^<]{30,200})<\/title>/gi);
-    if (rssTitles) {
-      for (const title of rssTitles) {
-        const clean = cleanHeadline(title);
+    // Pattern 1: RSS <title> with CDATA or plain
+    let match;
+    // CDATA format: <title><![CDATA[...]]></title>
+    const cdataRegex = /<title><!\[CDATA\[(.+?)\]\]><\/title>/gi;
+    while ((match = cdataRegex.exec(response)) !== null) {
+      const clean = cleanHeadline(match[1]);
+      if (passesFilters(clean) && !headlines.includes(clean)) {
+        headlines.push(clean);
+      }
+    }
+    
+    // Plain format: <title>...</title> inside <item> tags
+    if (headlines.length < source.maxHeadlines) {
+      // Match title tags anywhere in the response (handles RSS variations)
+      const plainRegex = /<item[^>]*>[\s\S]*?<title>([^<]{30,200})<\/title>/gi;
+      while ((match = plainRegex.exec(response)) !== null) {
+        const clean = cleanHeadline(match[1]);
         if (passesFilters(clean) && !headlines.includes(clean)) {
           headlines.push(clean);
         }
