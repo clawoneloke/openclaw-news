@@ -1,0 +1,13 @@
+{
+  "name": "openclaw-news",
+  "version": "1.0.0",
+  "description": "News fetcher for OpenClaw",
+  "main": "fetch-news.js",
+  "scripts": {
+    "start": "node fetch-news.js",
+    "upload": "node github-upload.js"
+  },
+  "keywords": ["openclaw", "news", "automation"],
+  "author": "",
+  "license": "MIT"
+}

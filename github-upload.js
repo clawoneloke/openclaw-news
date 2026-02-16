@@ -68,7 +68,7 @@ function getGitHubUsername() {
 function repoExists(username, repoName) {
   try {
     const response = execSync(
-      `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/repos/${username}/${repoName}`,
+      `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/repos/${encodeURIComponent(username)}/${encodeURIComponent(repoName)}`,
       { encoding: 'utf8' }
     );
     return response === '200';
@@ -81,11 +81,11 @@ function repoExists(username, repoName) {
  * Create repository
  */
 function createRepo(username, repoName) {
-  console.log(`${colors.cyan}Creating repository: ${repoName}${colors.reset}`);
+  console.log(`${colors.cyan}Creating repository: ${encodeURIComponent(repoName)}${colors.reset}`);
   
   try {
     execSync(`curl -X POST -H "Authorization: token ${GITHUB_TOKEN}" \
-      -d '{"name":"${repoName}","description":"Daily news fetcher for OpenClaw","private":false}' \
+      -d '{"name":"'${encodeURIComponent(repoName)}'","description":"Daily news fetcher for OpenClaw","private":false}' \
       https://api.github.com/user/repos`, { encoding: 'utf8' });
     
     console.log(`${colors.green}✓ Repository created${colors.reset}`);
