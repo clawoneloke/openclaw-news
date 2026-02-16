@@ -91,8 +91,10 @@ function cleanHeadline(text) {
 
 /**
  * Fetch news from Brave Search API via OpenClaw Gateway
+ * With error handling
  */
 async function fetchFromBrave(source) {
+  try {
   console.log(`${colors.cyan}Fetching from Brave Search API (via gateway)...${colors.reset}`);
   
   try {
@@ -354,3 +356,40 @@ main().catch(err => {
   console.error(`${colors.red}Error: ${err.message}${colors.reset}`);
   process.exit(1);
 });
+
+
+/**
+ * Send news summary via WhatsApp
+ */
+async function sendWhatsAppNotification(newsItems) {
+  if (newsItems.length === 0) {
+    console.log(`${colors.yellow}No news items to send${colors.reset}`);
+    return;
+  }
+  
+  // Format message
+  let message = '📰 *Daily News Summary*\n\n';
+  
+  for (const item of newsItems.slice(0, 5)) {  // Max 5 items
+    message += `• ${item.headline.substring(0, 80)}${item.headline.length > 80 ? '...' : ''}\n`;
+    message += `  (${item.source})\n\n`;
+  }
+  
+  if (newsItems.length > 5) {
+    message += `_...and ${newsItems.length - 5} more_`;
+  }
+  
+  // Send via OpenClaw CLI
+  try {
+    const { execSync } = require('child_process');
+    const escapedMessage = message.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    
+    execSync(
+      `openclaw message send --message "${escapedMessage}" --channel whatsapp`,
+      { encoding: 'utf8', timeout: 30000 }
+    );
+    console.log(`${colors.green}✓ WhatsApp notification sent${colors.reset}`);
+  } catch (error) {
+    console.log(`${colors.yellow}⚠ WhatsApp notification failed: ${error.message}${colors.reset}`);
+  }
+}
