@@ -393,3 +393,237 @@ async function sendWhatsAppNotification(newsItems) {
     console.log(`${colors.yellow}⚠ WhatsApp notification failed: ${error.message}${colors.reset}`);
   }
 }
+
+
+// ============================================================================
+// NEWS CONSOLIDATION ALGORITHM
+// ============================================================================
+
+/**
+ * Stop words for text preprocessing
+ */
+const STOP_WORDS = new Set([
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+  'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
+  'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as',
+  'into', 'through', 'during', 'before', 'after', 'above', 'below',
+  'between', 'under', 'again', 'further', 'then', 'once', 'here',
+  'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few',
+  'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
+  'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also', 'now',
+  'and', 'but', 'or', 'yet', 'if', 'because', 'although', 'while',
+  'that', 'which', 'who', 'whom', 'this', 'these', 'those', 'it'
+]);
+
+/**
+ * Preprocess text for similarity comparison
+ * 1. Lowercase
+ * 2. Remove punctuation
+ * 3. Remove stop words
+ * 4. Tokenize
+ */
+function preprocessText(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !STOP_WORDS.has(word));
+}
+
+/**
+ * Calculate Jaccard Similarity between two token sets
+ * J(A,B) = |A ∩ B| / |A ∪ B|
+ */
+function jaccardSimilarity(tokens1, tokens2) {
+  const set1 = new Set(tokens1);
+  const set2 = new Set(tokens2);
+  
+  const intersection = new Set([...set1].filter(x => set2.has(x)));
+  const union = new Set([...set1, ...set2]);
+  
+  if (union.size === 0) return 0;
+  return intersection.size / union.size;
+}
+
+/**
+ * Get similarity threshold from config (default: 0.5 for news)
+ */
+function getSimilarityThreshold() {
+  return config.consolidation?.similarityThreshold ?? 0.5;
+}
+
+/**
+ * Group similar headlines into clusters
+ * Returns array of clusters, each containing similar items
+ */
+function groupSimilarHeadlines(allItems) {
+  const threshold = getSimilarityThreshold();
+  const clusters = [];
+  const assigned = new Set();
+  
+  for (let i = 0; i < allItems.length; i++) {
+    if (assigned.has(i)) continue;
+    
+    const cluster = [allItems[i]];
+    assigned.add(i);
+    
+    for (let j = i + 1; j < allItems.length; j++) {
+      if (assigned.has(j)) continue;
+      
+      const tokens1 = preprocessText(allItems[i].headline);
+      const tokens2 = preprocessText(allItems[j].headline);
+      const similarity = jaccardSimilarity(tokens1, tokens2);
+      
+      if (similarity >= threshold) {
+        cluster.push(allItems[j]);
+        assigned.add(j);
+      }
+    }
+    
+    clusters.push(cluster);
+  }
+  
+  return clusters;
+}
+
+/**
+ * Consolidate clusters into single representative items
+ * Each cluster becomes one item with merged source count
+ */
+function consolidateClusters(clusters) {
+  const consolidated = [];
+  
+  for (const cluster of clusters) {
+    // Use the first item as representative
+    const representative = { ...cluster[0] };
+    
+    // Merge all sources from cluster
+    const sources = new Set(cluster.map(item => item.source));
+    representative.sources = Array.from(sources);
+    representative.sourceCount = sources.size;
+    
+    // Use the longest headline as the canonical one
+    let longestHeadline = representative.headline;
+    for (const item of cluster) {
+      if (item.headline.length > longestHeadline.length) {
+        longestHeadline = item.headline;
+      }
+    }
+    representative.headline = longestHeadline;
+    
+    consolidated.push(representative);
+  }
+  
+  return consolidated;
+}
+
+/**
+ * Score consolidated items based on:
+ * - Source count (multiple sources = higher score)
+ * - Recency (newer = higher score)
+ * - Social engagement (if available)
+ */
+function scoreItems(consolidatedItems) {
+  const scoring = config.consolidation?.scoring ?? {};
+  const sourceWeight = scoring.sourceCountWeight ?? 2.0;
+  const recencyWeight = scoring.recencyWeight ?? 1.0;
+  const engagementWeight = scoring.engagementWeight ?? 0.5;
+  
+  const maxAgeHours = 24; // Consider articles from last 24 hours
+  const maxEngagement = 10000; // Reference for normalization
+  
+  const scored = consolidatedItems.map(item => {
+    // Source count score
+    const sourceScore = item.sourceCount * sourceWeight;
+    
+    // Recency score (default 0.5 if unknown)
+    let recencyScore = 0.5;
+    if (item.publishedAt) {
+      const ageHours = (Date.now() - new Date(item.publishedAt).getTime()) / (1000 * 60 * 60);
+      recencyScore = recencyWeight * Math.max(0, 1 - (ageHours / maxAgeHours));
+    }
+    
+    // Engagement score (default 0.3 if unknown)
+    let engagementScore = 0.3;
+    if (item.engagement) {
+      engagementScore = engagementWeight * Math.min(item.engagement / maxEngagement, 1.0);
+    }
+    
+    // Total score
+    const totalScore = sourceScore + recencyScore + engagementScore;
+    
+    return {
+      ...item,
+      scores: {
+        source: sourceScore,
+        recency: recencyScore,
+        engagement: engagementScore,
+        total: totalScore
+      }
+    };
+  });
+  
+  // Sort by total score descending
+  scored.sort((a, b) => b.scores.total - a.scores.total);
+  
+  return scored;
+}
+
+/**
+ * Main consolidation function
+ * Takes flat list of all news items, returns top N consolidated items
+ */
+function consolidateNews(allHeadlines, maxItems = null) {
+  const max = maxItems ?? config.consolidation?.maxItems ?? config.maxItems ?? 3;
+  
+  // Flatten to array of {source, headline, publishedAt?, engagement?}
+  const flatItems = [];
+  for (const newsSource of allHeadlines) {
+    for (const headline of newsSource.headlines) {
+      flatItems.push({
+        source: newsSource.source,
+        headline: headline,
+        publishedAt: null, // Could be extracted from RSS
+        engagement: null  // Could be fetched from social APIs
+      });
+    }
+  }
+  
+  console.log(`${colors.cyan}Consolidating ${flatItems.length} headlines...${colors.reset}`);
+  
+  // Group similar items
+  const clusters = groupSimilarHeadlines(flatItems);
+  console.log(`${colors.cyan}Grouped into ${clusters.length} clusters${colors.reset}`);
+  
+  // Consolidate clusters
+  const consolidated = consolidateClusters(clusters);
+  
+  // Score and rank
+  const scored = scoreItems(consolidated);
+  
+  // Return top N
+  const topItems = scored.slice(0, max);
+  
+  console.log(`${colors.green}Top ${topItems.length} stories:${colors.reset}`);
+  for (const item of topItems) {
+    console.log(`  [${item.scores.total.toFixed(2)}] ${item.headline.substring(0, 60)}... (${item.sources.length} source${item.sources.length > 1 ? 's' : ''})`);
+  }
+  
+  return topItems;
+}
+
+/**
+ * Get consolidation config summary
+ */
+function getConsolidationConfig() {
+  return {
+    maxItems: config.consolidation?.maxItems ?? config.maxItems ?? 3,
+    similarityThreshold: getSimilarityThreshold(),
+    scoring: config.consolidation?.scoring ?? {
+      sourceCountWeight: 2.0,
+      recencyWeight: 1.0,
+      engagementWeight: 0.5
+    }
+  };
+}

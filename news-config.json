@@ -74,5 +74,14 @@
   },
   "userAgent": "Mozilla/5.0 (compatible; OpenClaw/1.0)",
   "timeout": 15000,
-  "requestDelay": 2000
+  "requestDelay": 2000,
+  "consolidation": {
+    "maxItems": 3,
+    "similarityThreshold": 0.5,
+    "scoring": {
+      "sourceCountWeight": 2.0,
+      "recencyWeight": 1.0,
+      "engagementWeight": 0.5
+    }
+  }
 }

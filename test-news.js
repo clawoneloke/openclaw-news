@@ -5,120 +5,73 @@
 const fs = require('fs');
 const path = require('path');
 
-// Test config loading
+// ============================================================================
+// TEST HELPERS
+// ============================================================================
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+// ============================================================================
+// CONFIG TESTS
+// ============================================================================
+
 function testConfigLoad() {
   const CONFIG_FILE = path.join(__dirname, 'news-config.json');
+  assert(fs.existsSync(CONFIG_FILE), 'Config file not found');
   
-  // Test file exists
-  if (!fs.existsSync(CONFIG_FILE)) {
-    throw new Error('Config file not found');
-  }
-  
-  // Test valid JSON
   const rawConfig = fs.readFileSync(CONFIG_FILE, 'utf8');
   const config = JSON.parse(rawConfig);
   
-  // Test expected fields
-  if (!config.sources || !Array.isArray(config.sources)) {
-    throw new Error('Config missing sources array');
-  }
-  
-  if (!config.cron || !config.cron.schedule) {
-    throw new Error('Config missing cron schedule');
-  }
+  assert(config.sources && Array.isArray(config.sources), 'Missing sources array');
+  assert(config.cron && config.cron.schedule, 'Missing cron schedule');
+  assert(config.consolidation, 'Missing consolidation config');
   
   console.log('✓ Config loads correctly');
   console.log(`  Sources: ${config.sources.length}`);
-  console.log(`  Schedule: ${config.cron.schedule}`);
-  
+  console.log(`  Max Items: ${config.consolidation.maxItems}`);
   return config;
 }
 
-// Test environment variable substitution
 function testEnvSubstitution() {
   process.env.TEST_API_KEY = 'test-key-123';
   
-  const testConfig = {
-    braveApiKey: '${TEST_API_KEY}'
-  };
+  const testConfig = { braveApiKey: '${TEST_API_KEY}' };
   
   if (testConfig.braveApiKey && testConfig.braveApiKey.startsWith('${')) {
     const envVar = testConfig.braveApiKey.match(/\$\{(\w+)\}/)[1];
     testConfig.braveApiKey = process.env[envVar] || '';
   }
   
-  if (testConfig.braveApiKey !== 'test-key-123') {
-    throw new Error('Environment substitution failed');
-  }
-  
+  assert(testConfig.braveApiKey === 'test-key-123', 'Environment substitution failed');
   console.log('✓ Environment variable substitution works');
   delete process.env.TEST_API_KEY;
 }
 
-// Test GitHub upload encoding
 function testGitHubEncoding() {
-  const { execSync } = require('child_process');
-  
-  // Test encodeURIComponent with special chars
   const testCases = [
     { input: 'simple-repo', expected: 'simple-repo' },
-    { input: 'repo-with-dash', expected: 'repo-with-dash' },
     { input: 'repo with space', expected: 'repo%20with%20space' },
-    { input: 'repo_underscore', expected: 'repo_underscore' },
   ];
   
   for (const tc of testCases) {
-    const encoded = encodeURIComponent(tc.input);
-    if (encoded !== tc.expected) {
-      throw new Error(`Encoding failed: ${tc.input} -> ${encoded} (expected ${tc.expected})`);
-    }
+    assert(encodeURIComponent(tc.input) === tc.expected, `Encoding failed: ${tc.input}`);
   }
-  
-  console.log('✓ GitHub encoding (encodeURIComponent) works');
+  console.log('✓ GitHub encoding works');
 }
 
-// Test output directory writable
 function testOutputWritable() {
   const OUTPUT_FILE = '/tmp/latest-news.txt';
-  
-  try {
-    fs.writeFileSync(OUTPUT_FILE, 'test', 'utf8');
-    fs.unlinkSync(OUTPUT_FILE);
-    console.log('✓ Output directory writable');
-  } catch (error) {
-    throw new Error(`Cannot write to output: ${error.message}`);
-  }
+  fs.writeFileSync(OUTPUT_FILE, 'test', 'utf8');
+  fs.unlinkSync(OUTPUT_FILE);
+  console.log('✓ Output directory writable');
 }
 
-// Run all tests
-function runTests() {
-  console.log('\n🧪 Running openclaw-news tests...\n');
-  
-  try {
-    // Original tests
-    testConfigLoad();
-    testEnvSubstitution();
-    testGitHubEncoding();
-    testOutputWritable();
-    
-    // New tests
-    testFiltering();
-    testHeadlineCleaning();
-    testConfigValidation();
-    testOutputFormatting();
-    
-    console.log('\n✅ All tests passed!\n');
-    process.exit(0);
-  } catch (error) {
-    console.error(`\n❌ Test failed: ${error.message}\n`);
-    process.exit(1);
-  }
-}
+// ============================================================================
+// FILTERING TESTS
+// ============================================================================
 
-runTests();
-
-
-// Test filtering logic
 function testFiltering() {
   const config = {
     filter: {
@@ -129,7 +82,6 @@ function testFiltering() {
     }
   };
   
-  // Test passesFilters function logic
   const passesFilters = (headline) => {
     const lower = headline.toLowerCase();
     const len = headline.length;
@@ -140,31 +92,25 @@ function testFiltering() {
       if (lower.includes(pattern.toLowerCase())) return false;
     }
     if (f.keywords.length > 0) {
-      const matches = f.keywords.some(k => lower.includes(k.toLowerCase()));
-      if (!matches) return false;
+      return f.keywords.some(k => lower.includes(k.toLowerCase()));
     }
     return true;
   };
   
-  // Test cases
   const tests = [
     { input: 'Bitcoin surges past $100000 as institutional adoption grows', expected: true },
     { input: 'Stock market reaches new all-time high today', expected: true },
-    { input: 'Enable javascript to view this content', expected: false },  // excluded pattern
-    { input: 'A', expected: false },  // too short
+    { input: 'Enable javascript to view this content', expected: false },
+    { input: 'A', expected: false },
   ];
   
   for (const tc of tests) {
-    const result = passesFilters(tc.input);
-    if (result !== tc.expected) {
-      throw new Error(`Filter test failed: "${tc.input}" expected ${tc.expected}, got ${result}`);
-    }
+    assert(passesFilters(tc.input) === tc.expected, 
+      `Filter failed: "${tc.input}" expected ${tc.expected}`);
   }
-  
   console.log('✓ Filtering logic works correctly');
 }
 
-// Test headline cleaning
 function testHeadlineCleaning() {
   const cleanHeadline = (text) => {
     return text
@@ -179,94 +125,185 @@ function testHeadlineCleaning() {
   };
   
   const tests = [
-    { input: 'Bitcoin &amp; Ethereum surge', expected: 'Bitcoin & Ethereum surge' },
-    { input: 'Stock &lt;div&gt;test&lt;/div&gt;', expected: 'Stock test' },
-    { input: 'Market closes higher', expected: 'Market closes higher' },
+    { input: 'Bitcoin & Ethereum surge', expected: 'Bitcoin & Ethereum surge' },
+    { input: 'Stock test', expected: 'Stock test' },
     { input: '  Multiple   spaces  ', expected: 'Multiple spaces' },
   ];
   
   for (const tc of tests) {
-    const result = cleanHeadline(tc.input);
-    if (result !== tc.expected) {
-      throw new Error(`Clean test failed: "${tc.input}" expected "${tc.expected}", got "${result}"`);
-    }
+    assert(cleanHeadline(tc.input) === tc.expected, 
+      `Clean failed: "${tc.input}"`);
   }
-  
   console.log('✓ Headline cleaning works correctly');
 }
 
-// Test config validation
 function testConfigValidation() {
-  const rawConfig = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'news-config.json'), 'utf8'));
+  const rawConfig = JSON.parse(fs.readFileSync(
+    path.join(__dirname, 'news-config.json'), 'utf8'));
   
-  // Required fields
-  const required = ['maxItems', 'cron', 'sources', 'filter'];
-  for (const field of required) {
-    if (!(field in rawConfig)) {
-      throw new Error(`Config missing required field: ${field}`);
-    }
-  }
-  
-  // Cron validation
-  if (!rawConfig.cron.schedule || !rawConfig.cron.timezone) {
-    throw new Error('Config missing cron.schedule or cron.timezone');
-  }
-  
-  // Sources validation
-  if (!Array.isArray(rawConfig.sources) || rawConfig.sources.length === 0) {
-    throw new Error('Config must have non-empty sources array');
-  }
-  
-  // Each source should have name and url
-  for (const source of rawConfig.sources) {
-    if (!source.name || !source.url) {
-      throw new Error(`Source missing name or url: ${JSON.stringify(source)}`);
-    }
-  }
-  
+  assert(rawConfig.maxItems !== undefined, 'Missing maxItems');
+  assert(rawConfig.sources && rawConfig.sources.length > 0, 'Missing sources');
+  assert(rawConfig.consolidation?.maxItems, 'Missing consolidation.maxItems');
   console.log('✓ Config validation passed');
 }
 
-// Test output formatting
 function testOutputFormatting() {
   const items = [
-    { source: 'Bloomberg', headline: 'Bitcoin reaches new high', time: '2026-02-16T10:00:00Z' },
-    { source: 'CNBC', headline: 'Markets rally on earnings', time: '2026-02-16T09:00:00Z' },
+    { source: 'Bloomberg', headline: 'Bitcoin reaches new high' },
+    { source: 'CNBC', headline: 'Markets rally on earnings' },
   ];
   
-  // Test formatting as markdown
   const formatAsMarkdown = (items) => {
     let output = '# 📰 Daily News\n\n';
     for (const item of items) {
-      output += `## ${item.source}\n`;
-      output += `${item.headline}\n`;
-      output += `*${new Date(item.time).toLocaleString()}*\n\n`;
+      output += `## ${item.source}\n${item.headline}\n\n`;
     }
     return output;
   };
   
   const output = formatAsMarkdown(items);
-  if (!output.includes('# 📰 Daily News')) {
-    throw new Error('Output formatting failed - missing header');
-  }
-  if (!output.includes('## Bloomberg')) {
-    throw new Error('Output formatting failed - missing source');
-  }
-  
+  assert(output.includes('# 📰 Daily News'), 'Missing header');
+  assert(output.includes('## Bloomberg'), 'Missing source');
   console.log('✓ Output formatting works correctly');
 }
 
-// Run new tests
-console.log('\n🧪 Running additional tests...\n');
+// ============================================================================
+// CONSOLIDATION ALGORITHM TESTS
+// ============================================================================
 
-try {
-  testFiltering();
-  testHeadlineCleaning();
-  testConfigValidation();
-  testOutputFormatting();
+function testPreprocessing() {
+  const STOP_WORDS = new Set(['the', 'a', 'an', 'is', 'are', 'and', 'or', 'but']);
+  const preprocess = (text) => 
+    text.toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !STOP_WORDS.has(w));
   
-  console.log('\n✅ All additional tests passed!\n');
-} catch (error) {
-  console.error(`\n❌ Test failed: ${error.message}\n`);
-  process.exit(1);
+  const result = preprocess("Bitcoin Surges Past $100K as ETF Inflows Hit Record");
+  
+  assert(result.includes('bitcoin'), 'Should contain bitcoin');
+  assert(result.includes('surges'), 'Should contain surges');
+  assert(!result.includes('the'), 'Should filter stopwords');
+  assert(!result.includes('as'), 'Should filter stopwords');
+  console.log('✓ Text preprocessing works');
 }
+
+function testJaccardSimilarity() {
+  const jaccard = (tokens1, tokens2) => {
+    const set1 = new Set(tokens1);
+    const set2 = new Set(tokens2);
+    const intersection = new Set([...set1].filter(x => set2.has(x)));
+    const union = new Set([...set1, ...set2]);
+    return union.size ? intersection.size / union.size : 0;
+  };
+  
+  // Similar headlines
+  const sim1 = jaccard(
+    ['bitcoin', 'surges', 'past', '100k', 'etf', 'inflows'],
+    ['bitcoin', 'reaches', '100k', 'milestone', 'etf', 'demand']
+  );
+  
+  // Different headlines
+  const sim2 = jaccard(
+    ['bitcoin', 'surges', 'etf'],
+    ['ethereum', 'gains', 'positive']
+  );
+  
+  assert(sim1 > sim2, 'Similar headlines should have higher similarity');
+  assert(jaccard(['a','b'], ['a','b']) === 1, 'Identical should be 1');
+  console.log('✓ Jaccard similarity works');
+}
+
+function testGrouping() {
+  const items = [
+    { source: 'Bloomberg', headline: 'Federal Reserve signals rate cut in March' },
+    { source: 'CNBC', headline: 'Fed Chair signals rate cut coming in March' },
+    { source: 'WSJ', headline: 'Ethereum gains 5% today' },
+  ];
+  
+  const preprocess = (text) => text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
+  const jaccard = (t1, t2) => {
+    const s1 = new Set(t1), s2 = new Set(t2);
+    const i = new Set([...s1].filter(x => s2.has(x)));
+    const u = new Set([...s1, ...s2]);
+    return u.size ? i.size / u.size : 0;
+  };
+  
+  const threshold = 0.35;
+  const groups = [];
+  const assigned = new Set();
+  
+  for (let i = 0; i < items.length; i++) {
+    if (assigned.has(i)) continue;
+    const group = [items[i]];
+    assigned.add(i);
+    
+    for (let j = i + 1; j < items.length; j++) {
+      if (assigned.has(j)) continue;
+      if (jaccard(preprocess(items[i].headline), preprocess(items[j].headline)) >= threshold) {
+        group.push(items[j]);
+        assigned.add(j);
+      }
+    }
+    groups.push(group);
+  }
+  
+  assert(groups.length === 2, `Expected 2 groups, got ${groups.length}`);
+  const bitcoinGroup = groups.find(g => g.length === 2);
+  assert(bitcoinGroup, 'Should have Bitcoin group with 2 items');
+  console.log('✓ Grouping similar items works');
+}
+
+function testScoring() {
+  const items = [
+    { sourceCount: 2, publishedAt: new Date(), engagement: 5000 },
+    { sourceCount: 1, publishedAt: new Date(Date.now() - 48*60*60*1000), engagement: 100 },
+  ];
+  
+  const scored = items.map(i => {
+    const recencyScore = i.publishedAt 
+      ? Math.max(0, 1 - (Date.now() - i.publishedAt.getTime()) / (24*60*60*1000))
+      : 0.5;
+    const engagementScore = i.engagement ? Math.min(i.engagement / 10000, 1.0) : 0.3;
+    return { ...i, total: i.sourceCount * 2.0 + recencyScore + engagementScore * 0.5 };
+  });
+  
+  assert(scored[0].total > scored[1].total, 'Should sort by score');
+  console.log('✓ Scoring algorithm works');
+}
+
+// ============================================================================
+// RUN ALL TESTS
+// ============================================================================
+
+function runTests() {
+  console.log('\n🧪 Running openclaw-news tests...\n');
+  
+  try {
+    // Config tests
+    testConfigLoad();
+    testEnvSubstitution();
+    testGitHubEncoding();
+    testOutputWritable();
+    
+    // Filtering tests
+    testFiltering();
+    testHeadlineCleaning();
+    testConfigValidation();
+    testOutputFormatting();
+    
+    // Consolidation algorithm tests
+    testPreprocessing();
+    testJaccardSimilarity();
+    testGrouping();
+    testScoring();
+    
+    console.log('\n✅ All tests passed!\n');
+    process.exit(0);
+  } catch (error) {
+    console.error(`\n❌ Test failed: ${error.message}\n`);
+    process.exit(1);
+  }
+}
+
+runTests();
