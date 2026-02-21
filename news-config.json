@@ -5,6 +5,11 @@
   "outputFile": "/tmp/latest-news.txt",
   "maxItems": 15,
   "braveApiKey": "${BRAVE_API_KEY}",
+  "notifications": {
+    "enabled": true,
+    "channel": "whatsapp",
+    "target": "+64220621342"
+  },
   "cron": {
     "schedule": "15 7 * * 1,2,3,4,5,6",
     "timezone": "Pacific/Auckland",

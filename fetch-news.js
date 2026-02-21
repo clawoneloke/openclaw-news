@@ -35,6 +35,54 @@ try {
 // Get gateway token from environment (security: use env var)
 const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 
+/**
+ * Send message via OpenClaw gateway
+ */
+async function sendNotification(message) {
+  const notif = config.notifications;
+  
+  if (!notif || !notif.enabled) {
+    console.log(`${colors.yellow}Notifications disabled${colors.reset}`);
+    return;
+  }
+  
+  const channel = notif.channel || 'whatsapp';
+  const target = notif.target;
+  
+  if (!target) {
+    console.log(`${colors.yellow}No notification target configured${colors.reset}`);
+    return;
+  }
+  
+  console.log(`${colors.cyan}Sending notification via ${channel}...${colors.reset}`);
+  
+  try {
+    // Use openclaw CLI to send message
+    const escapedMessage = message.replace(/"/g, '\\"');
+    const cmd = `openclaw message send --channel ${channel} --target "${target}" -m "${escapedMessage}" --json`;
+    
+    const response = execSync(cmd, {
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024,
+      timeout: 20000,  // 20 second timeout
+      env: { ...process.env, OPENCLAW_GATEWAY_TOKEN: gatewayToken }
+    });
+    
+    const result = JSON.parse(response);
+    
+    if (result.messageId || result.id) {
+      console.log(`${colors.green}✓ Notification sent (${result.messageId || result.id})${colors.reset}`);
+    } else if (result.error) {
+      console.log(`${colors.yellow}⚠ Notification error: ${result.error}${colors.reset}`);
+    } else {
+      console.log(`${colors.yellow}⚠ Notification response: ${response.substring(0, 200)}${colors.reset}`);
+    }
+    
+  } catch (error) {
+    console.log(`${colors.yellow}⚠ Failed to send notification: ${error.message}${colors.reset}`);
+  }
+}
+
 // Colors
 const colors = {
   reset: '\x1b[0m',
@@ -372,6 +420,9 @@ async function main() {
   
   console.log(`\n${colors.green}${colors.bold}✓ Complete!${colors.reset}`);
   console.log(`${colors.cyan}Output: ${OUTPUT_FILE}${colors.reset}`);
+  
+  // Set notification flag
+  fs.writeFileSync('/tmp/news-notification.flag', '1');
 }
 
 // Run
