@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Tests for openclaw-news
+ * Unit Tests for openclaw-news
+ * Tests core algorithms and helper functions
  */
+
 const fs = require('fs');
 const path = require('path');
 
@@ -10,7 +12,7 @@ const path = require('path');
 // ============================================================================
 
 function assert(condition, message) {
-  if (!condition) throw new Error(message);
+  if (!condition) throw new Error(`Assertion failed: ${message}`);
 }
 
 // ============================================================================
@@ -18,7 +20,7 @@ function assert(condition, message) {
 // ============================================================================
 
 function testConfigLoad() {
-  const CONFIG_FILE = path.join(__dirname, 'news-config.json');
+  const CONFIG_FILE = path.join(__dirname, '..', 'news-config.json');
   assert(fs.existsSync(CONFIG_FILE), 'Config file not found');
   
   const rawConfig = fs.readFileSync(CONFIG_FILE, 'utf8');
@@ -126,7 +128,7 @@ function testHeadlineCleaning() {
   
   const tests = [
     { input: 'Bitcoin & Ethereum surge', expected: 'Bitcoin & Ethereum surge' },
-    { input: 'Stock test', expected: 'Stock test' },
+    { input: 'Stock &amp; Bitcoin test', expected: 'Stock & Bitcoin test' },
     { input: '  Multiple   spaces  ', expected: 'Multiple spaces' },
   ];
   
@@ -139,7 +141,7 @@ function testHeadlineCleaning() {
 
 function testConfigValidation() {
   const rawConfig = JSON.parse(fs.readFileSync(
-    path.join(__dirname, 'news-config.json'), 'utf8'));
+    path.join(__dirname, '..', 'news-config.json'), 'utf8'));
   
   assert(rawConfig.maxItems !== undefined, 'Missing maxItems');
   assert(rawConfig.sources && rawConfig.sources.length > 0, 'Missing sources');
@@ -250,7 +252,7 @@ function testGrouping() {
   
   assert(groups.length === 2, `Expected 2 groups, got ${groups.length}`);
   const bitcoinGroup = groups.find(g => g.length === 2);
-  assert(bitcoinGroup, 'Should have Bitcoin group with 2 items');
+  assert(bitcoinGroup, 'Should have Fed rate group with 2 items');
   console.log('✓ Grouping similar items works');
 }
 
@@ -277,7 +279,7 @@ function testScoring() {
 // ============================================================================
 
 function runTests() {
-  console.log('\n🧪 Running openclaw-news tests...\n');
+  console.log('\n🧪 Running openclaw-news unit tests...\n');
   
   try {
     // Config tests
@@ -298,7 +300,7 @@ function runTests() {
     testGrouping();
     testScoring();
     
-    console.log('\n✅ All tests passed!\n');
+    console.log('\n✅ All unit tests passed!\n');
     process.exit(0);
   } catch (error) {
     console.error(`\n❌ Test failed: ${error.message}\n`);

@@ -5,6 +5,9 @@
   "main": "fetch-news.js",
   "scripts": {
     "start": "node fetch-news.js",
+    "test": "node tests/run-tests.js",
+    "test:unit": "node tests/unit.test.js",
+    "test:integration": "node tests/integration.test.js",
     "upload": "node github-upload.js"
   },
   "keywords": ["openclaw", "news", "automation"],

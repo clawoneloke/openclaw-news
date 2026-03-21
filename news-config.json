@@ -6,7 +6,7 @@
   "maxItems": 15,
   "braveApiKey": "${BRAVE_API_KEY}",
   "notifications": {
-    "enabled": true,
+    "enabled": false,
     "channel": "whatsapp",
     "target": "+64220621342"
   },

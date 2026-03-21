@@ -7,11 +7,10 @@ Daily news fetcher for OpenClaw - fetches and summarizes news from multiple sour
 ```
 news/
 ├── fetch-news.js       # Main script - fetches and consolidates news
-├── send-news.sh        # Notification sender - sends news via WhatsApp
 ├── news-config.json    # Configuration file
-├── watchdog.js        # Health monitoring script
-├── test-news.js       # Test suite
-└── README.md          # This file
+├── test-news.js        # Test suite
+├── watchdog.js         # Health monitoring script (standalone)
+└── README.md           # This file
 ```
 
 ## Configuration (news-config.json)
@@ -24,7 +23,7 @@ news/
     "timezone": "Pacific/Auckland"
   },
   "notifications": {
-    "enabled": true,
+    "enabled": false,
     "channel": "whatsapp",
     "target": "+64220621342"
   },
@@ -55,66 +54,84 @@ node fetch-news.js
 
 Output is saved to `/tmp/latest-news.txt`.
 
-## Systemd Setup (Recommended)
+## OpenClaw Cron Setup
 
-The news fetcher runs via systemd timer:
+The news fetcher runs via OpenClaw cron job (not systemd).
 
-### Files
-- `openclaw-news.service` - Fetches news and sends notification
-- `openclaw-news.timer` - Runs daily at 7:20 AM (Mon-Sat)
+### Cron Job Configuration
 
-### Setup
+The cron job is managed via OpenClaw's cron system:
 
 ```bash
-# Link service and timer
-sudo ln -s ~/.openclaw/workspace/parkalotio-booker/systemd/openclaw-news.service /etc/systemd/system/
-sudo ln -s ~/.openclaw/workspace/parkalotio-booker/systemd/openclaw-news.timer /etc/systemd/system/
+# List cron jobs
+openclaw cron list
 
-# Reload and enable
-sudo systemctl daemon-reload
-sudo systemctl enable --now openclaw-news.timer
-
-# Verify
-sudo systemctl list-timers --all | grep openclaw-news
+# View job details
+openclaw cron jobs <job-id>
 ```
 
-### Check Status
+### Manual Run
 
 ```bash
-# View next run time
-sudo systemctl status openclaw-news.timer
+# Run directly
+cd ~/.openclaw/workspace/news && node fetch-news.js
 
-# Manual run
-sudo systemctl start openclaw-news.service
+# Or via OpenClaw cron trigger
+openclaw cron run "News Fetcher v2"
 ```
 
 ## Notification System
 
-The notification system uses a flag-based approach:
-1. `fetch-news.js` creates `/tmp/news-notification.flag` after fetching
-2. `send-news.sh` checks for the flag and sends the news via WhatsApp
-3. The service runs both sequentially
+Notifications are delivered via OpenClaw cron job's `announce` delivery mode, not via a separate script.
+
+The `fetch-news.js` output is saved to `/tmp/latest-news.txt` and the cron job's completion message (summary) is delivered to WhatsApp automatically.
+
+### Deprecated: Flag-Based System
+
+The `/tmp/news-notification.flag` file was part of an old notification approach that is no longer used. The current implementation relies on OpenClaw cron announce delivery.
 
 ## Testing
 
 ```bash
-# Run tests
+# Run all tests
 cd ~/.openclaw/workspace/news
 node test-news.js
 
-# Test fetch only
+# Test fetch only (requires network)
 node fetch-news.js
 
-# Test notification only
-echo "1" > /tmp/news-notification.flag
-./send-news.sh
+# View output
+cat /tmp/latest-news.txt
 ```
 
 ## Logs
 
-- News log: `~/.openclaw/logs/news.log`
-- Error log: `~/.openclaw/logs/news.error.log`
-- Output: `/tmp/latest-news.txt`
+- News output: `/tmp/latest-news.txt`
+- Cron job history: via `openclaw cron runs <job-id>`
+- Gateway logs: `tail -f ~/.openclaw/logs/*.log`
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  OpenClaw Cron Job (Schedule: 15 7 * * 1-6)               │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ fetch-news.js                                        │   │
+│  │   1. Fetch from all sources (RSS + Brave API)        │   │
+│  │   2. Clean and filter headlines                     │   │
+│  │   3. Consolidate similar stories (Jaccard)          │   │
+│  │   4. Score and rank                                 │   │
+│  │   5. Output to /tmp/latest-news.txt                 │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                           │                                │
+│                           ▼                                │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Cron Announce Delivery                              │   │
+│  │   - Summary delivered to WhatsApp automatically     │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## GitHub
 
