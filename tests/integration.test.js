@@ -358,6 +358,127 @@ async function testOutputFormatters() {
 }
 
 // ============================================================================
+// ADDITIONAL INTEGRATION TESTS
+// ============================================================================
+
+async function testRetryLogic() {
+  console.log('\n🔄 Testing retry logic...');
+  
+  // Replicate withRetry from fetch-news.js
+  const withRetry = async (fn, maxRetries = 2, delayMs = 1000) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        if (attempt === maxRetries) throw error;
+        await new Promise(r => setTimeout(r, delayMs * attempt));
+      }
+    }
+  };
+  
+  // Test 1: Succeeds on first try
+  let attempts1 = 0;
+  const succeedOnce = async () => {
+    attempts1++;
+    return ['Headline'];
+  };
+  const result1 = await withRetry(succeedOnce, 3, 10);
+  assert(result1.length === 1, 'Should return result');
+  assert(attempts1 === 1, 'Should not retry on success');
+  console.log('  ✓ No retry on first success');
+  
+  // Test 2: Retries once then succeeds
+  let attempts2 = 0;
+  const succeedOnRetry = async () => {
+    attempts2++;
+    if (attempts2 < 2) throw new Error('Temporary failure');
+    return ['Headline ' + attempts2];
+  };
+  const result2 = await withRetry(succeedOnRetry, 3, 10);
+  assert(result2.length === 1, 'Should return result');
+  assert(attempts2 === 2, 'Should retry once');
+  console.log('  ✓ Retry once then succeeds');
+  
+  // Test 3: Exhausts all retries
+  let attempts3 = 0;
+  const alwaysFail = async () => {
+    attempts3++;
+    throw new Error('Permanent failure');
+  };
+  try {
+    await withRetry(alwaysFail, 3, 10);
+    assert(false, 'Should throw after exhausting retries');
+  } catch (error) {
+    assert(attempts3 === 3, 'Should retry maxRetries times');
+    assert(error.message === 'Permanent failure', 'Should propagate original error');
+  }
+  console.log('  ✓ Exhausts retries and propagates error');
+  
+  console.log('  ✓ Retry logic works correctly');
+}
+
+async function testOutputPathResolution() {
+  console.log('\n📁 Testing output path resolution...');
+  
+  // Replicate getOutputPath from fetch-news.js
+  const getOutputPath = (format) => {
+    const base = '/tmp/latest-news';
+    const formats = {
+      markdown: '.md',
+      json: '.json',
+      html: '.html',
+      plain: '.txt'
+    };
+    return (base + (formats[format] || '.txt')).replace('/tmp/', '/tmp/news-');
+  };
+  
+  // Test each format
+  assert(getOutputPath('markdown') === '/tmp/news-latest-news.md', 'markdown → .md');
+  assert(getOutputPath('json') === '/tmp/news-latest-news.json', 'json → .json');
+  assert(getOutputPath('html') === '/tmp/news-latest-news.html', 'html → .html');
+  assert(getOutputPath('plain') === '/tmp/news-latest-news.txt', 'plain → .txt');
+  
+  // Test unknown format falls back to .txt
+  assert(getOutputPath('unknown') === '/tmp/news-latest-news.txt', 'unknown → .txt');
+  assert(getOutputPath('') === '/tmp/news-latest-news.txt', 'empty → .txt');
+  assert(getOutputPath(null) === '/tmp/news-latest-news.txt', 'null → .txt');
+  
+  console.log('  ✓ Output path resolution works correctly');
+}
+
+async function testEscapeHtmlEdgeCases() {
+  console.log('\n🔒 Testing escapeHtml edge cases...');
+  
+  const escapeHtml = (text) => {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return text.replace(/[&<>"']/g, c => map[c]);
+  };
+  
+  // Basic already tested in testOutputFormatters
+  
+  // Test ampersand (including double encoding)
+  assert(escapeHtml('Test &amp;') === 'Test &amp;amp;', 'Double-encoded ampersand');
+  assert(escapeHtml('A & B') === 'A &amp; B', 'Simple ampersand');
+  
+  // Test quotes
+  assert(escapeHtml('"double quotes"') === '&quot;double quotes&quot;', 'Double quotes');
+  assert(escapeHtml("'single quotes'") === '&#39;single quotes&#39;', 'Single quotes');
+  
+  // Test angle brackets
+  assert(escapeHtml('<div>') === '&lt;div&gt;', 'Angle brackets');
+  assert(escapeHtml('<script>alert("xss")</script>') === '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;', 'XSS pattern');
+  
+  // Test mixed
+  assert(escapeHtml('A < B & C > D') === 'A &lt; B &amp; C &gt; D', 'Mixed special chars');
+  
+  // Test empty and null-safe
+  assert(escapeHtml('') === '', 'Empty string');
+  assert(escapeHtml('plaintext') === 'plaintext', 'No special chars');
+  
+  console.log('  ✓ escapeHtml edge cases work correctly');
+}
+
+// ============================================================================
 // RUN ALL INTEGRATION TESTS
 // ============================================================================
 
@@ -375,6 +496,9 @@ async function runIntegrationTests() {
     await testErrorHandling();
     await testBraveAPIFallback();
     await testOutputFormatters();
+    await testRetryLogic();
+    await testOutputPathResolution();
+    await testEscapeHtmlEdgeCases();
     
     console.log('\n' + '='.repeat(50));
     console.log('✅ All integration tests passed!\n');
