@@ -1,10 +1,19 @@
 {
   "name": "openclaw-news-fetcher",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Daily news fetcher for OpenClaw - fetches and summarizes news from multiple sources",
   "outputFile": "/tmp/latest-news.txt",
   "maxItems": 15,
   "braveApiKey": "${BRAVE_API_KEY}",
+  "output": {
+    "formats": ["markdown", "json", "html", "plain"],
+    "paths": {
+      "markdown": "/tmp/news-summary.md",
+      "json": "/tmp/news-summary.json",
+      "html": "/tmp/news-summary.html",
+      "plain": "/tmp/news-summary.txt"
+    }
+  },
   "notifications": {
     "enabled": false,
     "channel": "whatsapp",
