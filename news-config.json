@@ -15,7 +15,7 @@
     }
   },
   "notifications": {
-    "enabled": false,
+    "enabled": true,
     "channel": "whatsapp",
     "target": "+64220621342"
   },
