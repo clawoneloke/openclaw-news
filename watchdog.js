@@ -2,7 +2,7 @@
 /**
  * News Watchdog - Alerts when news fetcher hasn't run
  * Run via separate cron to monitor health
- * 
+ *
  * Usage: node watchdog.js
  * Exit codes: 0 = healthy, 1 = unhealthy, 2 = error
  */
@@ -24,7 +24,7 @@ function getLastRun() {
       return {
         timestamp: new Date(data.lastRun),
         hoursAgo: (Date.now() - new Date(data.lastRun).getTime()) / (1000 * 60 * 60),
-        success: data.success !== false
+        success: data.success !== false,
       };
     }
   } catch (e) {}
@@ -39,7 +39,7 @@ function checkNewsFile() {
       return {
         exists: true,
         ageHours,
-        mtime: stats.mtime
+        mtime: stats.mtime,
       };
     }
   } catch (e) {}
@@ -51,11 +51,11 @@ function sendAlert(message) {
     const target = process.env.NEWS_WATCHDOG_ALERT_TARGET || '+64220621342';
     const escapedMessage = message.replace(/"/g, '\\"');
     const cmd = `openclaw message send --channel whatsapp --target "${target}" -m "${escapedMessage}" --json`;
-    
+
     execSync(cmd, {
       encoding: 'utf8',
       timeout: 15000,
-      env: { ...process.env }
+      env: { ...process.env },
     });
     return true;
   } catch (error) {
@@ -68,34 +68,42 @@ function checkHealth() {
   const lastRun = getLastRun();
   const newsFile = checkNewsFile();
   const now = new Date();
-  
+
   console.log('🔍 News Fetcher Watchdog');
   console.log(`   Time: ${now.toLocaleString()}`);
   console.log('');
-  
+
   if (!lastRun) {
     console.log('⚠️  No previous run recorded');
     return { healthy: false, reason: 'no_history' };
   }
-  
-  console.log(`📰 Last run: ${lastRun.timestamp.toLocaleString()} (${lastRun.hoursAgo.toFixed(1)} hours ago)`);
-  console.log(`📄 News file: ${newsFile.exists ? `${newsFile.ageHours.toFixed(1)} hours old` : 'not found'}`);
+
+  console.log(
+    `📰 Last run: ${lastRun.timestamp.toLocaleString()} (${lastRun.hoursAgo.toFixed(1)} hours ago)`
+  );
+  console.log(
+    `📄 News file: ${newsFile.exists ? `${newsFile.ageHours.toFixed(1)} hours old` : 'not found'}`
+  );
   console.log('');
-  
+
   // Critical: No run in 30+ hours
   if (lastRun.hoursAgo > ALERT_THRESHOLD_HOURS) {
     console.log('🔴 CRITICAL: No news run in 30+ hours!');
     const alertMsg = `🚨 News Watchdog ALERT: No news fetcher run in ${lastRun.hoursAgo.toFixed(1)} hours. Last successful run: ${lastRun.timestamp.toLocaleString()}`;
     sendAlert(alertMsg);
-    return { healthy: false, reason: 'critical_no_run', hoursAgo: lastRun.hoursAgo };
+    return {
+      healthy: false,
+      reason: 'critical_no_run',
+      hoursAgo: lastRun.hoursAgo,
+    };
   }
-  
+
   // Warning: No run in 26+ hours
   if (lastRun.hoursAgo > MAX_AGE_HOURS) {
     console.log('🟡 WARNING: News fetcher may be stuck');
     return { healthy: false, reason: 'stale', hoursAgo: lastRun.hoursAgo };
   }
-  
+
   // Healthy
   console.log('✅ News fetcher healthy');
   return { healthy: true, hoursAgo: lastRun.hoursAgo };

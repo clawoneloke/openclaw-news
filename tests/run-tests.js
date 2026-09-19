@@ -11,11 +11,11 @@ function runTests(name, testFile) {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`Running: ${name}`);
   console.log('='.repeat(60));
-  
+
   try {
-    execSync(`node "${testFile}"`, { 
+    execSync(`node "${testFile}"`, {
       cwd: path.dirname(testFile),
-      stdio: 'inherit'
+      stdio: 'inherit',
     });
     return true;
   } catch (error) {
@@ -36,8 +36,8 @@ console.log('\n' + '='.repeat(60));
 console.log('Test Summary');
 console.log('='.repeat(60));
 
-const passed = results.filter(r => r).length;
-const failed = results.filter(r => !r).length;
+const passed = results.filter((r) => r).length;
+const failed = results.filter((r) => !r).length;
 
 console.log(`\n✅ Passed: ${passed}`);
 console.log(`❌ Failed: ${failed}`);

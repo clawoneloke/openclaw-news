@@ -10,7 +10,11 @@
     "test:integration": "node tests/integration.test.js",
     "upload": "node github-upload.js"
   },
-  "keywords": ["openclaw", "news", "automation"],
+  "keywords": [
+    "openclaw",
+    "news",
+    "automation"
+  ],
   "author": "",
   "license": "MIT"
 }

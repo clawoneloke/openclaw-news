@@ -3,6 +3,7 @@
 ## System Overview
 
 The news fetcher is a Node.js CLI that:
+
 1. Fetches headlines from multiple RSS/API sources in parallel
 2. Filters and cleans headlines
 3. Consolidates similar stories using Jaccard similarity
@@ -13,6 +14,7 @@ The news fetcher is a Node.js CLI that:
 ### fetch-news.js (Main)
 
 **Responsibilities:**
+
 - Configuration loading with env var substitution
 - Parallel source fetching with retry logic
 - News consolidation algorithm
@@ -20,6 +22,7 @@ The news fetcher is a Node.js CLI that:
 - Watchdog file generation
 
 **Key Functions:**
+
 ```
 loadConfig()           → Parse JSON, substitute ${VAR} patterns
 fetchNews(source)      → Fetch single source (RSS or Brave API)
@@ -33,11 +36,13 @@ formatMarkdown/JSON/HTML/plain → Output formatters
 ### watchdog.js (Health Monitor)
 
 **Responsibilities:**
+
 - Check last successful run timestamp
 - Verify news output file age
 - Send alerts via WhatsApp on failure
 
 **Exit Codes:**
+
 - `0`: Healthy (run within 26 hours)
 - `1`: Unhealthy (stale >26h or critical >30h)
 - `2`: Error (file read failures)
@@ -45,6 +50,7 @@ formatMarkdown/JSON/HTML/plain → Output formatters
 ### news-config.json (Configuration)
 
 **Sections:**
+
 - `maxItems`: Number of top stories to return
 - `braveApiKey`: Brave Search API key (env var)
 - `output.formats`: Array of output formats

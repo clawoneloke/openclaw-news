@@ -5,23 +5,25 @@
 
 ## Summary
 
-| Status | Items |
-|--------|-------|
-| ✅ PASSED | 4 |
-| ⚠️  WARNING | 0 |
-| ❌ FAILED | 0 |
+| Status     | Items |
+| ---------- | ----- |
+| ✅ PASSED  | 4     |
+| ⚠️ WARNING | 0     |
+| ❌ FAILED  | 0     |
 
 ## Findings
 
 ### 1. Hardcoded Credentials - FIXED ✅
+
 - **Issue:** Brave API key hardcoded in `news-config.json`
 - **Severity:** CRITICAL
-- **Remediation:** 
+- **Remediation:**
   - API key rotated (user must regenerate at https://brave.com/search/api/)
   - Config now uses `${BRAVE_API_KEY}` template
   - Environment variable support added
 
 ### 2. Hardcoded Gateway Token - FIXED ✅
+
 - **Issue:** Gateway token hardcoded in `fetch-news.js`
 - **Severity:** HIGH
 - **Remediation:**
@@ -29,10 +31,12 @@
   - Uses `OPENCLAW_GATEWAY_TOKEN` environment variable
 
 ### 3. Git Ignore - ADDED ✅
+
 - **Status:** .gitignore created
 - **Protected:** node_modules/, credentials/, keys/, .env files
 
 ### 4. Git History - CLEAN ✅
+
 - **Status:** No secrets in commit history
 - **Note:** Previous commits did not contain actual secrets (only templates)
 

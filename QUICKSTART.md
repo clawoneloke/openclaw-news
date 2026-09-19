@@ -45,6 +45,7 @@ node test-news.js
 ## API Keys (Optional)
 
 For Brave Search API (optional - script works without it):
+
 ```bash
 export BRAVE_API_KEY="your-key-here"
 ```

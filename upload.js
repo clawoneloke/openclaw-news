@@ -11,20 +11,38 @@ const colors = {
   green: '\x1b[32m',
   cyan: '\x1b[36m',
   red: '\x1b[31m',
-  reset: '\x1b[0m'
+  reset: '\x1b[0m',
 };
 
-const GITHUB_TOKEN = fs.readFileSync(path.join(process.env.HOME, '.openclaw/workspace/github-token'), 'utf8').trim();
+const GITHUB_TOKEN = fs
+  .readFileSync(path.join(process.env.HOME, '.openclaw/workspace/github-token'), 'utf8')
+  .trim();
 
 console.log(colors.green + '✓ GitHub token loaded' + colors.reset);
 
 // Get username
-const curlUser = spawnSync('curl', ['-s', '-H', 'Authorization: token ' + GITHUB_TOKEN, 'https://api.github.com/user'], { encoding: 'utf8' });
+const curlUser = spawnSync(
+  'curl',
+  ['-s', '-H', 'Authorization: token ' + GITHUB_TOKEN, 'https://api.github.com/user'],
+  { encoding: 'utf8' }
+);
 const userData = JSON.parse(curlUser.stdout);
 console.log(colors.green + '✓ Username: ' + userData.login + colors.reset);
 
 // Create repo
-spawnSync('curl', ['-X', 'POST', '-H', 'Authorization: token ' + GITHUB_TOKEN, '-d', '{"name":"' + REPO_NAME + '","description":"Daily news fetcher for OpenClaw","private":false}', 'https://api.github.com/user/repos'], { encoding: 'utf8' });
+spawnSync(
+  'curl',
+  [
+    '-X',
+    'POST',
+    '-H',
+    'Authorization: token ' + GITHUB_TOKEN,
+    '-d',
+    '{"name":"' + REPO_NAME + '","description":"Daily news fetcher for OpenClaw","private":false}',
+    'https://api.github.com/user/repos',
+  ],
+  { encoding: 'utf8' }
+);
 console.log(colors.green + '✓ Repository created' + colors.reset);
 
 // Init git
@@ -43,11 +61,20 @@ execSync('chmod +x /tmp/askpass.sh');
 
 // Set HOME for git to find the script
 const gitEnv = { ...process.env, HOME: '/tmp', GIT_ASKPASS: '/tmp/askpass.sh' };
-execSync('cd ' + repoDir + ' && git remote add origin https://github.com/clawoneloke/' + REPO_NAME + '.git', { env: gitEnv });
+execSync(
+  'cd ' +
+    repoDir +
+    ' && git remote add origin https://github.com/clawoneloke/' +
+    REPO_NAME +
+    '.git',
+  { env: gitEnv }
+);
 execSync('cd ' + repoDir + ' && git branch -M main', { env: gitEnv });
 execSync('cd ' + repoDir + ' && git push -u origin main', { env: gitEnv });
 
-console.log(colors.green + '✓ Pushed to GitHub: https://github.com/clawoneloke/' + REPO_NAME + colors.reset);
+console.log(
+  colors.green + '✓ Pushed to GitHub: https://github.com/clawoneloke/' + REPO_NAME + colors.reset
+);
 
 // Cleanup
 execSync('rm -rf ' + repoDir);

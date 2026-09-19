@@ -33,7 +33,7 @@ const colors = {
   yellow: '\x1b[33m',
   red: '\x1b[31m',
   cyan: '\x1b[36m',
-  bold: '\x1b[1m'
+  bold: '\x1b[1m',
 };
 
 /**
@@ -54,7 +54,10 @@ function checkToken() {
  */
 function getGitHubUsername() {
   try {
-    const response = execSync(`curl -s -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/user`, { encoding: 'utf8' });
+    const response = execSync(
+      `curl -s -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/user`,
+      { encoding: 'utf8' }
+    );
     const data = JSON.parse(response);
     return data.login;
   } catch (error) {
@@ -82,12 +85,15 @@ function repoExists(username, repoName) {
  */
 function createRepo(username, repoName) {
   console.log(`${colors.cyan}Creating repository: ${encodeURIComponent(repoName)}${colors.reset}`);
-  
+
   try {
-    execSync(`curl -X POST -H "Authorization: token ${GITHUB_TOKEN}" \
+    execSync(
+      `curl -X POST -H "Authorization: token ${GITHUB_TOKEN}" \
       -d '{"name":"'${encodeURIComponent(repoName)}'","description":"Daily news fetcher for OpenClaw","private":false}' \
-      https://api.github.com/user/repos`, { encoding: 'utf8' });
-    
+      https://api.github.com/user/repos`,
+      { encoding: 'utf8' }
+    );
+
     console.log(`${colors.green}✓ Repository created${colors.reset}`);
     return true;
   } catch (error) {
@@ -104,24 +110,24 @@ function createRepo(username, repoName) {
  */
 function uploadToGitHub(projectDir, repoName) {
   console.log(`${colors.cyan}Initializing git repository...${colors.reset}`);
-  
+
   const repoDir = `/tmp/${repoName}`;
-  
+
   // Clean up temp dir
   execSync(`rm -rf ${repoDir}`);
   execSync(`mkdir -p ${repoDir}`);
-  
+
   // Copy files
   execSync(`cp -r ${projectDir}/* ${repoDir}/`);
-  
+
   // Initialize git
   execSync(`cd ${repoDir} && git init`);
   execSync(`cd ${repoDir} && git add .`);
   execSync(`cd ${repoDir} && git commit -m "Initial upload of ${repoName}"`);
-  
+
   // Add remote
   execSync(`cd ${repoDir} && git remote add origin https://github.com/clawoneloke/${repoName}.git`);
-  
+
   // Push
   console.log(`${colors.cyan}Pushing to GitHub...${colors.reset}`);
   try {
@@ -129,11 +135,13 @@ function uploadToGitHub(projectDir, repoName) {
     console.log(`${colors.green}✓ Successfully pushed to GitHub${colors.reset}`);
   } catch (error) {
     console.log(`${colors.yellow}Retrying with token authentication...${colors.reset}`);
-    execSync(`cd ${repoDir} && git remote set-url origin https://${GITHUB_TOKEN}@github.com/clawoneloke/${repoName}.git`);
+    execSync(
+      `cd ${repoDir} && git remote set-url origin https://${GITHUB_TOKEN}@github.com/clawoneloke/${repoName}.git`
+    );
     execSync(`cd ${repoDir} && git push -u origin main`);
     console.log(`${colors.green}✓ Successfully pushed to GitHub${colors.reset}`);
   }
-  
+
   // Cleanup
   execSync(`rm -rf ${repoDir}`);
 }
@@ -143,17 +151,17 @@ function uploadToGitHub(projectDir, repoName) {
  */
 function listFiles(dir) {
   const files = [];
-  
+
   function scan(directory, prefix = '') {
     const items = fs.readdirSync(directory);
-    
+
     for (const item of items) {
       const fullPath = path.join(directory, item);
       const relativePath = prefix + item;
-      
+
       // Skip node_modules
       if (item === 'node_modules') return;
-      
+
       if (fs.statSync(fullPath).isDirectory()) {
         files.push({ type: 'dir', name: relativePath });
         scan(fullPath, relativePath + '/');
@@ -162,7 +170,7 @@ function listFiles(dir) {
       }
     }
   }
-  
+
   scan(dir);
   return files;
 }
@@ -172,36 +180,38 @@ function listFiles(dir) {
  */
 function main() {
   console.log(`${colors.green}${colors.bold}GitHub Upload Script for OpenClaw${colors.reset}\n`);
-  
+
   // Check token
   checkToken();
-  
+
   // Get username
   const username = getGitHubUsername();
   console.log(`${colors.green}✓ GitHub username: ${username}${colors.reset}`);
-  
+
   // Check project directory
   if (!fs.existsSync(PROJECT_DIR)) {
     console.log(`${colors.red}Error: Project directory not found: ${PROJECT_DIR}${colors.reset}`);
     process.exit(1);
   }
-  
+
   // List files
   console.log(`${colors.cyan}Files to upload:${colors.reset}`);
   const files = listFiles(PROJECT_DIR);
-  files.forEach(f => {
+  files.forEach((f) => {
     console.log(`  ${f.type === 'dir' ? '📁' : '📄'} ${f.name}`);
   });
   console.log('');
-  
+
   // Create repo
   createRepo(username, REPO_NAME);
-  
+
   // Upload
   uploadToGitHub(PROJECT_DIR, REPO_NAME);
-  
+
   console.log(`\n${colors.green}${colors.bold}✓ Upload complete!${colors.reset}`);
-  console.log(`${colors.cyan}Repository: https://github.com/${username}/${REPO_NAME}${colors.reset}`);
+  console.log(
+    `${colors.cyan}Repository: https://github.com/${username}/${REPO_NAME}${colors.reset}`
+  );
 }
 
 // Run

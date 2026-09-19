@@ -64,20 +64,23 @@ async function sendNotification(message) {
     const response = execSync(cmd, {
       encoding: 'utf8',
       maxBuffer: 1024 * 1024,
-      timeout: 20000,  // 20 second timeout
-      env: { ...process.env, OPENCLAW_GATEWAY_TOKEN: gatewayToken }
+      timeout: 20000, // 20 second timeout
+      env: { ...process.env, OPENCLAW_GATEWAY_TOKEN: gatewayToken },
     });
 
     const result = JSON.parse(response);
 
     if (result.messageId || result.id) {
-      console.log(`${colors.green}✓ Notification sent (${result.messageId || result.id})${colors.reset}`);
+      console.log(
+        `${colors.green}✓ Notification sent (${result.messageId || result.id})${colors.reset}`
+      );
     } else if (result.error) {
       console.log(`${colors.yellow}⚠ Notification error: ${result.error}${colors.reset}`);
     } else {
-      console.log(`${colors.yellow}⚠ Notification response: ${response.substring(0, 200)}${colors.reset}`);
+      console.log(
+        `${colors.yellow}⚠ Notification response: ${response.substring(0, 200)}${colors.reset}`
+      );
     }
-
   } catch (error) {
     console.log(`${colors.yellow}⚠ Failed to send notification: ${error.message}${colors.reset}`);
   }
@@ -90,7 +93,7 @@ const colors = {
   yellow: '\x1b[33m',
   red: '\x1b[31m',
   cyan: '\x1b[36m',
-  bold: '\x1b[1m'
+  bold: '\x1b[1m',
 };
 
 /**
@@ -115,7 +118,7 @@ function passesFilters(headline) {
 
   // Keyword inclusion (if any keywords specified)
   if (f.keywords.length > 0) {
-    const matches = f.keywords.some(k => lower.includes(k.toLowerCase()));
+    const matches = f.keywords.some((k) => lower.includes(k.toLowerCase()));
     if (!matches) return false;
   }
 
@@ -158,7 +161,7 @@ async function fetchFromBrave(source) {
       `curl -s "${searchUrl}" -H "Authorization: Bearer ${gatewayToken}" -H "Accept: application/json" --max-time ${config.timeout / 1000}`,
       {
         encoding: 'utf8',
-        maxBuffer: 2 * 1024 * 1024
+        maxBuffer: 2 * 1024 * 1024,
       }
     );
 
@@ -183,9 +186,10 @@ async function fetchFromBrave(source) {
 
     console.log(`${colors.green}  Found ${headlines.length} headlines${colors.reset}`);
     return headlines.slice(0, source.maxHeadlines);
-
   } catch (error) {
-    console.log(`${colors.yellow}  Gateway unavailable (${error.message}), falling back to direct API...${colors.reset}`);
+    console.log(
+      `${colors.yellow}  Gateway unavailable (${error.message}), falling back to direct API...${colors.reset}`
+    );
 
     // Fallback to direct API with proper headers
     try {
@@ -201,7 +205,7 @@ async function fetchFromBrave(source) {
         `curl -s "https://api.search.brave.com/v1/search?q=${encodeURIComponent(query)}&source=news&count=${source.maxHeadlines}" -H "Accept: application/json" -H "X-Subscription-Token: ${braveApiKey}" -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" --max-time ${config.timeout / 1000}`,
         {
           encoding: 'utf8',
-          maxBuffer: 2 * 1024 * 1024
+          maxBuffer: 2 * 1024 * 1024,
         }
       );
 
@@ -218,7 +222,6 @@ async function fetchFromBrave(source) {
 
       console.log(`${colors.green}  Found ${headlines.length} headlines${colors.reset}`);
       return headlines.slice(0, source.maxHeadlines);
-
     } catch (fallbackError) {
       console.log(`${colors.red}  Error: ${fallbackError.message}${colors.reset}`);
       return [];
@@ -247,7 +250,7 @@ async function fetchNews(source) {
       `curl -s -L "${source.url}" -H "User-Agent: ${config.userAgent}" --max-time ${config.timeout / 1000} 2>/dev/null`,
       {
         encoding: 'utf8',
-        maxBuffer: 2 * 1024 * 1024
+        maxBuffer: 2 * 1024 * 1024,
       }
     );
 
@@ -292,7 +295,6 @@ async function fetchNews(source) {
     const filtered = headlines.slice(0, source.maxHeadlines);
     console.log(`${colors.green}  Found ${filtered.length} headlines${colors.reset}`);
     return filtered;
-
   } catch (error) {
     console.log(`${colors.red}  Error: ${error.message}${colors.reset}`);
     return [];
@@ -340,42 +342,50 @@ function formatMarkdown(topNews, allNews, date, elapsed) {
  * Format news as JSON
  */
 function formatJSON(topNews, allNews, date, elapsed, fetchResults) {
-  return JSON.stringify({
-    generated: new Date().toISOString(),
-    date,
-    summary: {
-      sourcesConsolidated: allNews.length,
-      topStories: topNews.length,
-      fetchDurationSeconds: parseFloat(elapsed)
+  return JSON.stringify(
+    {
+      generated: new Date().toISOString(),
+      date,
+      summary: {
+        sourcesConsolidated: allNews.length,
+        topStories: topNews.length,
+        fetchDurationSeconds: parseFloat(elapsed),
+      },
+      topStories: topNews.map((item, i) => ({
+        rank: i + 1,
+        headline: item.headline,
+        sources: item.sources,
+        sourceCount: item.sources.length,
+      })),
+      rawSources: allNews.map((ns) => ({
+        source: ns.source,
+        headlineCount: ns.headlines.length,
+      })),
+      sourceResults: fetchResults.map((r) => ({
+        source: r.source,
+        success: r.success,
+        headlineCount: r.headlines?.length || 0,
+      })),
     },
-    topStories: topNews.map((item, i) => ({
-      rank: i + 1,
-      headline: item.headline,
-      sources: item.sources,
-      sourceCount: item.sources.length
-    })),
-    rawSources: allNews.map(ns => ({
-      source: ns.source,
-      headlineCount: ns.headlines.length
-    })),
-    sourceResults: fetchResults.map(r => ({
-      source: r.source,
-      success: r.success,
-      headlineCount: r.headlines?.length || 0
-    }))
-  }, null, 2);
+    null,
+    2
+  );
 }
 
 /**
  * Format news as HTML
  */
 function formatHTML(topNews, allNews, date, elapsed) {
-  const stories = topNews.map((item, i) => `
+  const stories = topNews
+    .map(
+      (item, i) => `
     <article>
       <h3>${i + 1}. ${escapeHtml(item.headline)}</h3>
-      <p class="sources">Sources: ${item.sources.map(s => escapeHtml(s)).join(', ')}</p>
+      <p class="sources">Sources: ${item.sources.map((s) => escapeHtml(s)).join(', ')}</p>
     </article>
-  `).join('');
+  `
+    )
+    .join('');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -432,8 +442,14 @@ Auto-generated by OpenClaw | Fetched in ${elapsed}s
  * Escape HTML special characters
  */
 function escapeHtml(text) {
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  return text.replace(/[&<>"']/g, c => map[c]);
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (c) => map[c]);
 }
 
 /**
@@ -445,7 +461,7 @@ function getOutputPath(format) {
     markdown: '.md',
     json: '.json',
     html: '.html',
-    plain: '.txt'
+    plain: '.txt',
   };
   return (base + (formats[format] || '.txt')).replace('/tmp/', '/tmp/news-');
 }
@@ -464,18 +480,30 @@ async function fetchNewsWithRetry(source, maxRetries = 2) {
       }
       // Empty result on last attempt
       if (attempt === maxRetries) {
-        return { source: source.name, headlines: [], success: false, error: 'No headlines after all retries' };
+        return {
+          source: source.name,
+          headlines: [],
+          success: false,
+          error: 'No headlines after all retries',
+        };
       }
     } catch (error) {
       lastError = error;
       if (attempt < maxRetries) {
-        console.log(`${colors.yellow}  Retry ${attempt}/${maxRetries} after error: ${error.message}${colors.reset}`);
-        await new Promise(r => setTimeout(r, config.requestDelay * attempt)); // Exponential backoff
+        console.log(
+          `${colors.yellow}  Retry ${attempt}/${maxRetries} after error: ${error.message}${colors.reset}`
+        );
+        await new Promise((r) => setTimeout(r, config.requestDelay * attempt)); // Exponential backoff
       }
     }
   }
 
-  return { source: source.name, headlines: [], success: false, error: lastError?.message || 'Unknown error' };
+  return {
+    source: source.name,
+    headlines: [],
+    success: false,
+    error: lastError?.message || 'Unknown error',
+  };
 }
 
 /**
@@ -489,23 +517,23 @@ async function main() {
   const startTime = Date.now();
 
   // Fetch news from configured sources IN PARALLEL
-  const enabledSources = config.sources.filter(s => s.enabled);
-  console.log(`${colors.cyan}Fetching from ${enabledSources.length} sources in parallel...${colors.reset}\n`);
-
-  const results = await Promise.all(
-    enabledSources.map(source => fetchNewsWithRetry(source, 2))
+  const enabledSources = config.sources.filter((s) => s.enabled);
+  console.log(
+    `${colors.cyan}Fetching from ${enabledSources.length} sources in parallel...${colors.reset}\n`
   );
+
+  const results = await Promise.all(enabledSources.map((source) => fetchNewsWithRetry(source, 2)));
 
   // Filter to only successful fetches
   const allNews = results
-    .filter(r => r.headlines.length > 0)
-    .map(r => ({ source: r.source, headlines: r.headlines }));
+    .filter((r) => r.headlines.length > 0)
+    .map((r) => ({ source: r.source, headlines: r.headlines }));
 
   // Log summary of failures
-  const failures = results.filter(r => r.headlines.length === 0);
+  const failures = results.filter((r) => r.headlines.length === 0);
   if (failures.length > 0) {
     console.log(`${colors.yellow}⚠ ${failures.length} source(s) failed:${colors.reset}`);
-    failures.forEach(f => console.log(`  - ${f.source}: ${f.error}`));
+    failures.forEach((f) => console.log(`  - ${f.source}: ${f.error}`));
   }
 
   if (allNews.length === 0) {
@@ -519,7 +547,10 @@ async function main() {
 
   // Format consolidated news
   const date = new Date().toLocaleDateString('en-NZ', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
   });
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -532,12 +563,14 @@ async function main() {
     markdown: formatMarkdown(topNews, allNews, date, elapsed),
     json: formatJSON(topNews, allNews, date, elapsed, results),
     html: formatHTML(topNews, allNews, date, elapsed),
-    plain: formatPlain(topNews, allNews, date, elapsed)
+    plain: formatPlain(topNews, allNews, date, elapsed),
   };
 
   // Write output files
   console.log(`\n${colors.green}${colors.bold}✓ Complete!${colors.reset}`);
-  console.log(`${colors.cyan}Fetched from ${allNews.length}/${enabledSources.length} sources in ${elapsed}s${colors.reset}\n`);
+  console.log(
+    `${colors.cyan}Fetched from ${allNews.length}/${enabledSources.length} sources in ${elapsed}s${colors.reset}\n`
+  );
   console.log(`${colors.cyan}Output formats:${colors.reset}`);
 
   for (const format of outputFormats) {
@@ -557,54 +590,139 @@ async function main() {
 
   // Record watchdog file for monitoring
   try {
-    fs.writeFileSync('/tmp/news-fetcher-watchdog.json', JSON.stringify({
-      lastRun: new Date().toISOString(),
-      success: true,
-      sourcesFetched: allNews.length,
-      sourcesFailed: failures.length,
-      durationSeconds: parseFloat(elapsed)
-    }));
+    fs.writeFileSync(
+      '/tmp/news-fetcher-watchdog.json',
+      JSON.stringify({
+        lastRun: new Date().toISOString(),
+        success: true,
+        sourcesFetched: allNews.length,
+        sourcesFailed: failures.length,
+        durationSeconds: parseFloat(elapsed),
+      })
+    );
   } catch (e) {
     console.log(`${colors.yellow}⚠ Could not write watchdog file${colors.reset}`);
   }
 }
 
 // Run
-main().catch(err => {
+main().catch((err) => {
   console.error(`${colors.red}Error: ${err.message}${colors.reset}`);
   process.exit(1);
 });
-
 
 // ============================================================================
 // NEWS CONSOLIDATION ALGORITHM
 // ============================================================================
 
 const STOP_WORDS = new Set([
-  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-  'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
-  'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as',
-  'into', 'through', 'during', 'before', 'after', 'above', 'below',
-  'between', 'under', 'again', 'further', 'then', 'once', 'here',
-  'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few',
-  'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
-  'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also', 'now',
-  'and', 'but', 'or', 'yet', 'if', 'because', 'although', 'while',
-  'that', 'which', 'who', 'whom', 'this', 'these', 'those', 'it'
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'could',
+  'should',
+  'may',
+  'might',
+  'must',
+  'shall',
+  'can',
+  'need',
+  'dare',
+  'to',
+  'of',
+  'in',
+  'for',
+  'on',
+  'with',
+  'at',
+  'by',
+  'from',
+  'as',
+  'into',
+  'through',
+  'during',
+  'before',
+  'after',
+  'above',
+  'below',
+  'between',
+  'under',
+  'again',
+  'further',
+  'then',
+  'once',
+  'here',
+  'there',
+  'when',
+  'where',
+  'why',
+  'how',
+  'all',
+  'each',
+  'few',
+  'more',
+  'most',
+  'other',
+  'some',
+  'such',
+  'no',
+  'nor',
+  'not',
+  'only',
+  'own',
+  'same',
+  'so',
+  'than',
+  'too',
+  'very',
+  'just',
+  'also',
+  'now',
+  'and',
+  'but',
+  'or',
+  'yet',
+  'if',
+  'because',
+  'although',
+  'while',
+  'that',
+  'which',
+  'who',
+  'whom',
+  'this',
+  'these',
+  'those',
+  'it',
 ]);
 
 function preprocessText(text) {
-  return text.toLowerCase()
+  return text
+    .toLowerCase()
     .replace(/[^\w\s]/g, '')
     .split(/\s+/)
-    .filter(word => word.length > 2 && !STOP_WORDS.has(word));
+    .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 }
 
 function jaccardSimilarity(tokens1, tokens2) {
   const set1 = new Set(tokens1);
   const set2 = new Set(tokens2);
-  const intersection = new Set([...set1].filter(x => set2.has(x)));
+  const intersection = new Set([...set1].filter((x) => set2.has(x)));
   const union = new Set([...set1, ...set2]);
   return union.size ? intersection.size / union.size : 0;
 }
@@ -642,12 +760,12 @@ function groupSimilarHeadlines(allItems) {
 function consolidateClusters(clusters) {
   const consolidated = [];
   for (const cluster of clusters) {
-    const sources = new Set(cluster.map(item => item.source));
-    const longest = cluster.reduce((a, b) => a.headline.length > b.headline.length ? a : b);
+    const sources = new Set(cluster.map((item) => item.source));
+    const longest = cluster.reduce((a, b) => (a.headline.length > b.headline.length ? a : b));
     consolidated.push({
       headline: longest.headline,
       sources: Array.from(sources),
-      sourceCount: sources.size
+      sourceCount: sources.size,
     });
   }
   return consolidated;
@@ -658,18 +776,20 @@ function scoreItems(consolidatedItems) {
   const sourceWeight = scoring.sourceCountWeight ?? 2.0;
   const recencyWeight = scoring.recencyWeight ?? 1.0;
 
-  return consolidatedItems.map(item => {
-    const sourceScore = item.sourceCount * sourceWeight;
-    const totalScore = sourceScore + recencyWeight * 0.5;
-    return { ...item, score: totalScore };
-  }).sort((a, b) => b.score - a.score);
+  return consolidatedItems
+    .map((item) => {
+      const sourceScore = item.sourceCount * sourceWeight;
+      const totalScore = sourceScore + recencyWeight * 0.5;
+      return { ...item, score: totalScore };
+    })
+    .sort((a, b) => b.score - a.score);
 }
 
 function consolidateNews(allHeadlines) {
   const maxItems = config.consolidation?.maxItems ?? config.maxItems ?? 3;
 
-  const flatItems = allHeadlines.flatMap(ns =>
-    ns.headlines.map(h => ({ source: ns.source, headline: h }))
+  const flatItems = allHeadlines.flatMap((ns) =>
+    ns.headlines.map((h) => ({ source: ns.source, headline: h }))
   );
 
   console.log(`${colors.cyan}Consolidating ${flatItems.length} headlines...${colors.reset}`);
@@ -683,7 +803,9 @@ function consolidateNews(allHeadlines) {
 
   console.log(`${colors.green}Top ${topItems.length} stories:${colors.reset}`);
   for (const item of topItems) {
-    console.log(`  [${item.score.toFixed(2)}] ${item.headline.substring(0, 50)}... (${item.sources.length} sources)`);
+    console.log(
+      `  [${item.score.toFixed(2)}] ${item.headline.substring(0, 50)}... (${item.sources.length} sources)`
+    );
   }
 
   return topItems;

@@ -5,6 +5,7 @@ This document describes the algorithms used to consolidate news from multiple so
 ## 1. Overview
 
 The news fetcher:
+
 1. Fetches headlines from all configured sources
 2. Consolidates into a flat list of news items with source attribution
 3. Detects similar items (same topic covered by multiple sources)
@@ -32,6 +33,7 @@ The news fetcher:
 ### 3.1 Text Preprocessing
 
 Before comparing headlines, preprocess each:
+
 1. Convert to lowercase
 2. Remove punctuation and special characters
 3. Remove stop words (the, a, an, is, are, etc.)
@@ -40,24 +42,106 @@ Before comparing headlines, preprocess each:
 ```javascript
 function preprocess(text) {
   const stopWords = new Set([
-    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-    'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
-    'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as',
-    'into', 'through', 'during', 'before', 'after', 'above', 'below',
-    'between', 'under', 'again', 'further', 'then', 'once', 'here',
-    'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few',
-    'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
-    'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also', 'now',
-    'and', 'but', 'or', 'yet', 'if', 'because', 'although', 'while',
-    'that', 'which', 'who', 'whom', 'this', 'these', 'those', 'it'
+    'the',
+    'a',
+    'an',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'being',
+    'have',
+    'has',
+    'had',
+    'do',
+    'does',
+    'did',
+    'will',
+    'would',
+    'could',
+    'should',
+    'may',
+    'might',
+    'must',
+    'shall',
+    'can',
+    'need',
+    'dare',
+    'to',
+    'of',
+    'in',
+    'for',
+    'on',
+    'with',
+    'at',
+    'by',
+    'from',
+    'as',
+    'into',
+    'through',
+    'during',
+    'before',
+    'after',
+    'above',
+    'below',
+    'between',
+    'under',
+    'again',
+    'further',
+    'then',
+    'once',
+    'here',
+    'there',
+    'when',
+    'where',
+    'why',
+    'how',
+    'all',
+    'each',
+    'few',
+    'more',
+    'most',
+    'other',
+    'some',
+    'such',
+    'no',
+    'nor',
+    'not',
+    'only',
+    'own',
+    'same',
+    'so',
+    'than',
+    'too',
+    'very',
+    'just',
+    'also',
+    'now',
+    'and',
+    'but',
+    'or',
+    'yet',
+    'if',
+    'because',
+    'although',
+    'while',
+    'that',
+    'which',
+    'who',
+    'whom',
+    'this',
+    'these',
+    'those',
+    'it',
   ]);
-  
+
   return text
     .toLowerCase()
     .replace(/[^\w\s]/g, '')
     .split(/\s+/)
-    .filter(word => word.length > 2 && !stopWords.has(word));
+    .filter((word) => word.length > 2 && !stopWords.has(word));
 }
 ```
 
@@ -75,10 +159,10 @@ Where A and B are sets of tokens from the two headlines.
 function jaccardSimilarity(tokens1, tokens2) {
   const set1 = new Set(tokens1);
   const set2 = new Set(tokens2);
-  
-  const intersection = new Set([...set1].filter(x => set2.has(x)));
+
+  const intersection = new Set([...set1].filter((x) => set2.has(x)));
   const union = new Set([...set1, ...set2]);
-  
+
   return intersection.size / union.size;
 }
 ```
@@ -86,6 +170,7 @@ function jaccardSimilarity(tokens1, tokens2) {
 ### 3.3 Threshold
 
 Two headlines are considered "same topic" if:
+
 ```
 similarity >= similarityThreshold (default: 0.6)
 ```
@@ -101,6 +186,7 @@ S₁ = sourceCount × sourceCountWeight
 ```
 
 Where:
+
 - `sourceCount`: Number of sources covering this item
 - `sourceCountWeight`: Weight factor (default: 2.0)
 
@@ -113,6 +199,7 @@ S₂ = recencyWeight × (1 - ageInHours / maxAge)
 ```
 
 Where:
+
 - `ageInHours`: Hours since article was published
 - `maxAge`: Maximum age to consider (default: 24 hours)
 - `recencyWeight`: Weight factor (default: 1.0)
@@ -126,6 +213,7 @@ S₃ = engagementWeight × min(engagement / maxEngagement, 1.0)
 ```
 
 Where:
+
 - `engagement`: Combined social signals (shares, comments, likes)
 - `maxEngagement`: Reference maximum for normalization
 - `engagementWeight`: Weight factor (default: 0.5)
@@ -150,25 +238,28 @@ totalScore = S₁ + S₂ + S₃
 ## 5. Example
 
 ### Input (3 sources)
+
 - **Bloomberg**: "Bitcoin Surges Past $100K as ETF Inflows Hit Record"
 - **CNBC**: "Bitcoin Reaches $100,000 Milestone on ETF Demand"
 - **WSJ**: "Ethereum Gains 5% Amid Positive Market Sentiment"
 
 ### Processing
+
 1. Preprocess: ["bitcoin", "surges", "past", "100k", "etf", "inflows", "hit", "record"]
 2. Preprocess: ["bitcoin", "reaches", "100000", "milestone", "etf", "demand"]
 3. Jaccard similarity: 0.5 (above threshold 0.6? No - wait, let me recalculate)
-   
+
    Intersection: bitcoin, etf (2)
    Union: bitcoin, surges, past, 100k, reaches, 100000, milestone, inflows, hit, record, demand (11)
    Similarity: 2/11 = 0.18 ❌
 
    Actually the threshold might be too high. Let's check with better example:
-   
+
 - **Bloomberg**: "Federal Reserve Signals Rate Cut in March"
 - **CNBC**: "Fed Chair Signals Rate Cut Coming in March"
 
 Preprocess:
+
 - ["federal", "reserve", "signals", "rate", "cut", "march"]
 - ["fed", "chair", "signals", "rate", "cut", "coming", "march"]
 
@@ -177,11 +268,13 @@ Union: federal, reserve, fed, chair, signals, rate, cut, coming, march (9)
 Similarity: 4/9 = 0.44 ❌ Still below 0.6
 
 The threshold of 0.6 is quite aggressive. Looking at the merge logic more carefully:
+
 - Items get grouped if similarity >= threshold
 - Then for each group, we take the first item as representative and add all sources to its count
 
 So a threshold of 0.5 would be more practical for news deduplication.
 
 ### Output
+
 Selected: "Federal Reserve Signals Rate Cut in March" (2 sources: Bloomberg, CNBC)
 Not selected: "Ethereum Gains 5%" (1 source)

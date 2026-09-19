@@ -54,8 +54,18 @@ Output saved to `/tmp/latest-news.txt` (Markdown format).
     "target": "+64220621342"
   },
   "sources": [
-    { "name": "Bloomberg Markets", "url": "...", "maxHeadlines": 3, "enabled": true },
-    { "name": "CNBC Business", "url": "...", "maxHeadlines": 3, "enabled": true }
+    {
+      "name": "Bloomberg Markets",
+      "url": "...",
+      "maxHeadlines": 3,
+      "enabled": true
+    },
+    {
+      "name": "CNBC Business",
+      "url": "...",
+      "maxHeadlines": 3,
+      "enabled": true
+    }
   ],
   "filter": {
     "minLength": 40,
@@ -76,12 +86,12 @@ Output saved to `/tmp/latest-news.txt` (Markdown format).
 
 ### Output Formats
 
-| Format | Default Path | Description |
-|--------|--------------|-------------|
-| markdown | `/tmp/latest-news.txt` | WhatsApp-friendly Markdown |
-| json | `/tmp/news-summary.json` | Full metadata + raw results |
-| html | `/tmp/news-summary.html` | Styled HTML page |
-| plain | `/tmp/news-summary.txt` | Plain text |
+| Format   | Default Path             | Description                 |
+| -------- | ------------------------ | --------------------------- |
+| markdown | `/tmp/latest-news.txt`   | WhatsApp-friendly Markdown  |
+| json     | `/tmp/news-summary.json` | Full metadata + raw results |
+| html     | `/tmp/news-summary.html` | Styled HTML page            |
+| plain    | `/tmp/news-summary.txt`  | Plain text                  |
 
 ### Source Types
 
